@@ -1,0 +1,59 @@
+plugins {
+    id 'xyz.jpenilla.run-paper' version '2.3.1'
+}
+
+dependencies {
+    implementation project(':bukkit')
+    compileOnly project(':common')
+
+    compileOnly 'io.papermc.paper:paper-api:26.3.build.226-stable'
+
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+    compileOnly 'org.projectlombok:lombok:1.18.38'
+
+    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+}
+
+shadowJar {
+    dependencies {
+        exclude(dependency('com.mojang:brigadier'))
+    }
+
+    relocate 'net.jodah', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.apache.commons.io', 'net.promptt001.leafclaims.libraries.commons.io'
+    relocate 'org.apache.commons.text', 'net.promptt001.leafclaims.libraries.commons.text'
+    relocate 'org.apache.commons.lang3', 'net.promptt001.leafclaims.libraries.commons.lang3'
+    relocate 'de.themoep', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.jetbrains', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.intellij', 'net.promptt001.leafclaims.libraries'
+    relocate 'com.zaxxer', 'net.promptt001.leafclaims.libraries'
+    relocate 'net.william278.paginedown', 'net.promptt001.leafclaims.libraries.paginedown'
+    relocate 'net.william278.desertwell', 'net.promptt001.leafclaims.libraries.desertwell'
+    relocate 'net.william278.cloplib', 'net.promptt001.leafclaims.libraries.cloplib'
+    relocate 'net.william278.toilet', 'net.promptt001.leafclaims.libraries.toilet'
+    relocate 'org.json', 'net.promptt001.leafclaims.libraries.json'
+    relocate 'dev.dejvokep.boostedyaml', 'net.promptt001.leafclaims.libraries.boostedyaml'
+    relocate 'org.snakeyaml', 'net.promptt001.leafclaims.libraries.snakeyaml'
+    relocate 'com.google.gson', 'net.promptt001.leafclaims.libraries.gson'
+    relocate 'com.fatboyindustrial', 'net.promptt001.leafclaims.libraries'
+    relocate 'de.exlll', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.bstats', 'net.promptt001.leafclaims.libraries.bstats'
+    relocate 'space.arim', 'net.promptt001.leafclaims.libraries.paperlib'
+    relocate 'me.lucko', 'net.promptt001.leafclaims.libraries'
+    relocate 'net.roxeez', 'net.promptt001.leafclaims.libraries'
+
+    minimize()
+}
+
+tasks {
+    runServer {
+        minecraftVersion('26.3')
+        downloadPlugins {
+            url("https://download.luckperms.net/1569/bukkit/loader/LuckPerms-Bukkit-5.4.152.jar")
+
+//            modrinth("dynmap", "5F9fwzR1")
+//            modrinth("pl3xmap", "1.20.4-478")
+//            modrinth("bluemap", "3.20-paper")
+        }
+    }
+}

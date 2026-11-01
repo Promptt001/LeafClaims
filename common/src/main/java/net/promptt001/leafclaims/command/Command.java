@@ -1,0 +1,98 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.command;
+
+import com.google.common.collect.Maps;
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.user.CommandUser;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
+import java.util.Map;
+
+public abstract class Command extends Node {
+
+    private final String usage;
+    private final Map<String, Boolean> additionalPermissions;
+
+    protected Command(@NotNull List<String> aliases, @NotNull String usage, @NotNull LeafClaims plugin) {
+        super(aliases, plugin);
+        this.usage = usage;
+        this.additionalPermissions = Maps.newTreeMap();
+    }
+
+    @Override
+    public final void onExecuted(@NotNull CommandUser executor, @NotNull String[] args) {
+        if (!executor.hasPermission(getPermission())) {
+            plugin.getLocales().getLocale("error_no_permission")
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+        if (executor.isOnCooldown(plugin.getSettings().getCommandCooldownSeconds())) {
+            plugin.getLocales().getLocale("error_on_cooldown")
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+        plugin.runAsync(() -> this.execute(executor, args));
+    }
+
+    public abstract void execute(@NotNull CommandUser executor, @NotNull String[] args);
+
+    @NotNull
+    protected String[] removeFirstArg(@NotNull String[] args) {
+        if (args.length <= 1) {
+            return new String[0];
+        }
+        String[] newArgs = new String[args.length - 1];
+        System.arraycopy(args, 1, newArgs, 0, args.length - 1);
+        return newArgs;
+    }
+
+    @NotNull
+    public final String getRawUsage() {
+        return usage;
+    }
+
+    @NotNull
+    public final String getUsage() {
+        return String.format("/%s %s", getName(), getRawUsage());
+    }
+
+    public final void addAdditionalPermissions(@NotNull Map<String, Boolean> permissions) {
+        permissions.forEach((permission, value) -> this.additionalPermissions.put(getPermission(permission), value));
+    }
+
+    @NotNull
+    public final Map<String, Boolean> getAdditionalPermissions() {
+        return additionalPermissions;
+    }
+
+    @NotNull
+    public String getDescription() {
+        return plugin.getLocales().getRawLocale(String.format("%s_command_description", getName()))
+                .orElse(getUsage());
+    }
+
+    @NotNull
+    public final LeafClaims getPlugin() {
+        return plugin;
+    }
+
+}

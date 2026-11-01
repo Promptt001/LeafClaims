@@ -1,0 +1,181 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.util;
+
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.position.Position;
+import org.jetbrains.annotations.NotNull;
+
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Cross-platform task scheduling implementation
+ *
+ * @since 1.0
+ */
+public interface Task extends Runnable {
+
+    abstract class Base implements Task {
+
+        protected final LeafClaims plugin;
+        protected final Runnable runnable;
+        protected boolean cancelled = false;
+
+        protected Base(@NotNull LeafClaims plugin, @NotNull Runnable runnable) {
+            this.plugin = plugin;
+            this.runnable = runnable;
+        }
+
+        public void cancel() {
+            cancelled = true;
+        }
+
+        @NotNull
+        @Override
+        public LeafClaims getPlugin() {
+            return plugin;
+        }
+
+    }
+
+    abstract class Async extends Base {
+
+        protected Async(@NotNull LeafClaims plugin, @NotNull Runnable runnable) {
+            super(plugin, runnable);
+        }
+
+    }
+
+    abstract class Sync extends Base {
+
+        protected Duration initialDelay;
+
+        protected Sync(@NotNull LeafClaims plugin, @NotNull Runnable runnable, @NotNull Duration initialDelay) {
+            super(plugin, runnable);
+            this.initialDelay = initialDelay;
+        }
+
+    }
+
+    abstract class Repeating extends Base {
+
+        protected final Duration repeatPeriod;
+        protected final Duration initialDelay;
+
+        protected Repeating(@NotNull LeafClaims plugin, @NotNull Runnable runnable,
+                            @NotNull Duration repeatPeriod, @NotNull Duration initialDelay) {
+            super(plugin, runnable);
+            this.repeatPeriod = repeatPeriod;
+            this.initialDelay = initialDelay;
+        }
+
+    }
+
+    @SuppressWarnings("UnusedReturnValue")
+    interface Supplier {
+
+        // Poll the async task queue roughly 12 times per second. The platform scheduler runs
+        // this on its async pool, so queued work never touches the world thread.
+        Duration TASK_POLL_RATE = Duration.of(80, ChronoUnit.MILLIS);
+
+        @NotNull
+        Task.Sync getSyncTask(@NotNull Runnable runnable, @NotNull Duration initialDelay);
+
+        @NotNull
+        Task.Async getAsyncTask(@NotNull Runnable runnable);
+
+        @NotNull
+        Task.Repeating getRepeatingTask(@NotNull Runnable runnable, @NotNull Duration repeatPeriod,
+                                        @NotNull Duration initialDelay);
+
+        @NotNull
+        default Task.Sync runSyncDelayed(@NotNull Runnable runnable, Duration initialDelay) {
+            final Task.Sync task = getSyncTask(runnable, initialDelay);
+            task.run();
+            return task;
+        }
+
+        @NotNull
+        default Task.Sync runSync(@NotNull Runnable runnable) {
+            return runSyncDelayed(runnable, Duration.ZERO);
+        }
+
+        @NotNull
+        default <T> Task.Sync runSync(T entity, @NotNull Runnable runnable) {
+            return runSyncDelayed(runnable, Duration.ZERO);
+        }
+
+        @NotNull
+        default Task.Sync runSync(Position position, @NotNull Runnable runnable) {
+            return runSyncDelayed(runnable, Duration.ZERO);
+        }
+
+        @NotNull
+        default Task.Async runAsync(@NotNull Runnable runnable) {
+            final Task.Async task = getAsyncTask(runnable);
+            task.run();
+            return task;
+        }
+
+        @NotNull
+        default Task.Async runQueued(@NotNull Runnable runnable) {
+            final Task.Async task = getAsyncTask(runnable);
+            getTaskQueue().offer(task);
+            return task;
+        }
+
+        default <T> CompletableFuture<T> supplyAsync(@NotNull java.util.function.Supplier<T> supplier) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            runAsync(() -> {
+                try {
+                    future.complete(supplier.get());
+                } catch (Throwable throwable) {
+                    future.completeExceptionally(throwable);
+                }
+            });
+            return future;
+        }
+
+        default void startQueuePoller() {
+            getRepeatingTask(() -> {
+                final Async task = getTaskQueue().poll();
+                if (task != null && !task.cancelled) {
+                    task.run();
+                }
+            }, TASK_POLL_RATE, TASK_POLL_RATE).run();
+        }
+
+        @NotNull
+        Queue<Task.Async> getTaskQueue();
+
+        void cancelTasks();
+
+        @NotNull
+        LeafClaims getPlugin();
+
+    }
+
+    @NotNull
+    LeafClaims getPlugin();
+
+}

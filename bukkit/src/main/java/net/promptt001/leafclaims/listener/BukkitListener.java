@@ -1,0 +1,170 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.listener;
+
+import lombok.Getter;
+import net.william278.cloplib.listener.BukkitOperationListener;
+import net.william278.cloplib.operation.OperationPosition;
+import net.william278.cloplib.operation.OperationUser;
+import net.promptt001.leafclaims.BukkitLeafClaims;
+import net.promptt001.leafclaims.moderation.SignListener;
+import net.promptt001.leafclaims.position.World;
+import net.promptt001.leafclaims.user.User;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.player.*;
+import org.bukkit.event.world.WorldLoadEvent;
+import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Optional;
+
+@Getter
+public class BukkitListener extends BukkitOperationListener implements BukkitPetListener, BukkitDropsListener,
+        ClaimsListener, UserListener, SignListener {
+
+    protected final BukkitLeafClaims plugin;
+
+    public BukkitListener(@NotNull BukkitLeafClaims plugin) {
+        super(plugin, plugin);
+        this.plugin = plugin;
+    }
+
+    @Override
+    public void register() {
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        setInspectorCallbacks();
+    }
+
+    @EventHandler
+    public void onPlayerJoin(@NotNull PlayerJoinEvent e) {
+        this.onUserJoin(plugin.getOnlineUser(e.getPlayer()));
+    }
+
+    @EventHandler
+    public void onPlayerQuit(@NotNull PlayerQuitEvent e) {
+        this.onUserQuit(plugin.getOnlineUser(e.getPlayer()));
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onPlayerSwitchHeldItem(@NotNull PlayerItemHeldEvent e) {
+        final ItemStack mainHand = e.getPlayer().getInventory().getItem(e.getNewSlot());
+        final ItemStack offHand = e.getPlayer().getInventory().getItemInOffHand();
+        this.onUserSwitchHeldItem(
+                plugin.getOnlineUser(e.getPlayer()),
+                (mainHand != null ? mainHand.getType() : Material.AIR).getKey().toString(),
+                offHand.getType().getKey().toString()
+        );
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onUserSwapHands(@NotNull PlayerSwapHandItemsEvent e) {
+        final ItemStack mainHand = e.getMainHandItem();
+        final ItemStack offHand = e.getOffHandItem();
+        this.onUserSwitchHeldItem(
+                plugin.getOnlineUser(e.getPlayer()),
+                (mainHand != null ? mainHand.getType() : Material.AIR).getKey().toString(),
+                (offHand != null ? offHand.getType() : Material.AIR).getKey().toString()
+        );
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onUserTeleport(@NotNull PlayerTeleportEvent e) {
+        if (e.getTo() != null && getPlugin().cancelMovement(
+                plugin.getOnlineUser(e.getPlayer()),
+                BukkitLeafClaims.Adapter.adapt(e.getFrom()),
+                BukkitLeafClaims.Adapter.adapt(e.getTo())
+        )) {
+            e.setCancelled(true);
+        }
+    }
+
+    // Fix: End crystals are not treated as explosion in wilderness by cloplib, so their
+    // block damage bypasses explosion_damage_terrain. Override here to handle them correctly.
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public void onEndCrystalExplode(@NotNull EntityExplodeEvent e) {
+        if (!e.getEntity().getType().getKey().getKey().equals("end_crystal")) {
+            return;
+        }
+        e.blockList().removeIf(block -> plugin.cancelOperation(
+                net.william278.cloplib.operation.Operation.of(
+                        net.william278.cloplib.operation.OperationType.EXPLOSION_DAMAGE_TERRAIN,
+                        getPosition(block.getLocation())
+                )
+        ));
+    }
+        
+    @EventHandler(ignoreCancelled = true)
+    public void onWorldLoad(@NotNull WorldLoadEvent e) {
+        plugin.runAsync(() -> {
+            final World world = BukkitLeafClaims.Adapter.adapt(e.getWorld());
+            plugin.loadClaimWorld(world);
+            plugin.getClaimWorld(world).ifPresent(loaded -> plugin.getMapHooks().forEach(
+                    hook -> hook.markClaims(loaded.getClaims(), loaded))
+            );
+        });
+    }
+
+    @Override
+    public void onUserTamedEntityAction(@NotNull Cancellable event, @Nullable Entity player, @NotNull Entity entity) {
+        // If pets are enabled, check if the entity is tamed
+        if (player == null || !getPlugin().getSettings().getPets().isEnabled() || !(entity instanceof Tameable tamed)) {
+            return;
+        }
+
+        // Check it was damaged by a player
+        final Optional<Player> source = getPlayerSource(player);
+        final Optional<User> owner = getPlugin().getPetOwner(tamed);
+        if (source.isEmpty() || owner.isEmpty()) {
+            return;
+        }
+
+        // Don't cancel the event if there's no mismatch
+        if (getPlugin().cancelPetOperation(plugin.getOnlineUser(source.get()), owner.get())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @Override
+    @NotNull
+    public OperationPosition getPosition(@NotNull Location location) {
+        return BukkitLeafClaims.Adapter.adapt(location);
+    }
+
+    @Override
+    @NotNull
+    public OperationUser getUser(@NotNull Player player) {
+        return plugin.getOnlineUser(player);
+    }
+
+    @Override
+    public void setInspectionDistance(int i) {
+        throw new UnsupportedOperationException("Cannot change inspection distance");
+    }
+
+}

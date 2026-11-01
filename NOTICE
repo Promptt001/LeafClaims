@@ -1,0 +1,18 @@
+LeafClaims
+Copyright 2026 Promptt001 and LeafClaims contributors
+
+This product is a modified version of HuskClaims
+(https://github.com/WiIIiam278/HuskClaims), Copyright William278 and
+contributors, licensed under the Apache License, Version 2.0.
+
+LeafClaims is not made, endorsed or supported by William278.
+
+Changes from HuskClaims include: the plugin and its Java package renamed
+to LeafClaims and net.promptt001.leafclaims; the removal of the
+HuskHomes, HuskTowns and HuskSync integrations together with
+cross-server teleport; the addition of claim warps, a Claim Menu GUI and
+an extensive test suite; and the ClopLib, Toilet, DesertWell and
+Paginedown libraries incorporated as source. Each release section in
+CHANGELOG.md records what differs from upstream.
+
+This product bundles third-party software; see THIRD_PARTY_LICENSES.md.

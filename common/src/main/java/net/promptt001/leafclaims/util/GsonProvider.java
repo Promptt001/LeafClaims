@@ -1,0 +1,109 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.util;
+
+import com.fatboyindustrial.gsonjavatime.Converters;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
+import net.william278.cloplib.operation.OperationType;
+import net.william278.cloplib.operation.OperationTypeGsonTypeAdapter;
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.claim.ClaimWorld;
+import net.promptt001.leafclaims.claim.ClaimWorldSerializer;
+import net.promptt001.leafclaims.claim.Region;
+import net.promptt001.leafclaims.claim.RegionSerializer;
+import net.promptt001.leafclaims.network.Message;
+import net.promptt001.leafclaims.user.Preferences;
+import net.promptt001.leafclaims.user.PreferencesSerializer;
+import net.promptt001.leafclaims.user.User;
+import net.promptt001.leafclaims.user.UserSerializer;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
+
+/**
+ * Interface for providing JSON adaptation utilities via Gson
+ *
+ * @since 1.0
+ */
+public interface GsonProvider {
+
+    // Maximum number of audit log entries to persist
+    int MAX_PERSISTED_LOG_ENTRIES = 50;
+
+    TypeToken<List<User>> USER_LIST_TOKEN = new TypeToken<>() {
+    };
+    TypeToken<ConcurrentMap<UUID, String>> UUID_STRING_MAP_TOKEN = new TypeToken<>() {
+    };
+    TypeToken<ConcurrentMap<String, String>> STRING_STRING_MAP_TOKEN = new TypeToken<>() {
+    };
+    TypeToken<Set<OperationType>> OPERATION_TYPE_SET_TOKEN = new TypeToken<>() {
+    };
+
+    @NotNull
+    default GsonBuilder getGsonBuilder() {
+        final UserSerializer users = new UserSerializer();
+        return Converters.registerOffsetDateTime(new GsonBuilder()
+                .excludeFieldsWithoutExposeAnnotation()
+                .registerTypeAdapter(User.class, users)
+                .registerTypeAdapter(Preferences.class, new PreferencesSerializer(MAX_PERSISTED_LOG_ENTRIES, users))
+                .registerTypeAdapter(ClaimWorld.class, new ClaimWorldSerializer(getPlugin()))
+                .registerTypeAdapter(Region.class, new RegionSerializer(getPlugin()))
+                .registerTypeAdapter(OperationType.class, new OperationTypeGsonTypeAdapter())
+        );
+    }
+
+    @NotNull
+    Gson getGson();
+
+    @NotNull
+    default ClaimWorld getClaimWorldFromJson(int id, @NotNull String json) throws JsonSyntaxException {
+        return ClaimWorldSerializer.upgradeSchema(json, getGson(), getPlugin(), id);
+    }
+
+    @NotNull
+    default User getUserFromJson(@NotNull String json) throws JsonSyntaxException {
+        return getGson().fromJson(json, User.class);
+    }
+
+    @NotNull
+    default List<User> getUserListFromJson(@NotNull String json) throws JsonSyntaxException {
+        return getGson().fromJson(json, USER_LIST_TOKEN);
+    }
+
+    @NotNull
+    default Preferences getPreferencesFromJson(@NotNull String json) throws JsonSyntaxException {
+        return getGson().fromJson(json, Preferences.class);
+    }
+
+    @NotNull
+    default Message getMessageFromJson(@NotNull String json) throws JsonSyntaxException {
+        return getGson().fromJson(json, Message.class);
+    }
+
+    @NotNull
+    LeafClaims getPlugin();
+
+}

@@ -1,0 +1,61 @@
+plugins {
+    id 'maven-publish'
+}
+
+dependencies {
+    implementation project(path: ':common')
+
+    implementation 'net.kyori:adventure-platform-bukkit:4.4.0'
+    implementation 'io.papermc:paperlib:1.0.8'
+    implementation 'space.arim.morepaperlib:morepaperlib:0.4.4'
+
+
+    implementation 'org.bstats:bstats-bukkit:3.1.0'
+    implementation 'de.exlll:configlib-yaml:4.6.1'
+
+    compileOnly 'org.spigotmc:spigot-api:1.17.1-R0.1-SNAPSHOT'
+    // Test-only: HarmfulBlocksMappingTests reads HARMFUL_BLOCKS Materials
+    testImplementation 'org.spigotmc:spigot-api:1.17.1-R0.1-SNAPSHOT'
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+    compileOnly 'org.projectlombok:lombok:1.18.38'
+    compileOnly 'it.unimi.dsi:fastutil:8.5.16'
+
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7.1'
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+    compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.9-SNAPSHOT'
+
+    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+}
+
+shadowJar {
+    dependencies {
+        exclude(dependency('com.mojang:brigadier'))
+    }
+
+    relocate 'net.jodah', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.apache.commons.io', 'net.promptt001.leafclaims.libraries.commons.io'
+    relocate 'org.apache.commons.text', 'net.promptt001.leafclaims.libraries.commons.text'
+    relocate 'org.apache.commons.lang3', 'net.promptt001.leafclaims.libraries.commons.lang3'
+    relocate 'de.themoep', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.jetbrains', 'net.promptt001.leafclaims.libraries'
+    relocate 'org.intellij', 'net.promptt001.leafclaims.libraries'
+    relocate 'com.zaxxer', 'net.promptt001.leafclaims.libraries'
+    relocate 'net.william278.paginedown', 'net.promptt001.leafclaims.libraries.paginedown'
+    relocate 'net.william278.desertwell', 'net.promptt001.leafclaims.libraries.desertwell'
+    relocate 'net.william278.cloplib', 'net.promptt001.leafclaims.libraries.cloplib'
+    relocate 'net.william278.toilet', 'net.promptt001.leafclaims.libraries.toilet'
+    relocate 'org.json', 'net.promptt001.leafclaims.libraries.json'
+    relocate 'dev.dejvokep.boostedyaml', 'net.promptt001.leafclaims.libraries.boostedyaml'
+    relocate 'org.snakeyaml', 'net.promptt001.leafclaims.libraries.snakeyaml'
+    relocate 'com.google.gson', 'net.promptt001.leafclaims.libraries.gson'
+    relocate 'com.fatboyindustrial', 'net.promptt001.leafclaims.libraries'
+    relocate 'de.exlll', 'net.promptt001.leafclaims.libraries'
+
+    relocate 'org.bstats', 'net.promptt001.leafclaims.libraries.bstats'
+    relocate 'io.papermc', 'net.promptt001.leafclaims.libraries.paperlib'
+    relocate 'space.arim', 'net.promptt001.leafclaims.libraries.paperlib'
+    relocate 'me.lucko', 'net.promptt001.leafclaims.libraries'
+    relocate 'net.roxeez', 'net.promptt001.leafclaims.libraries'
+
+    minimize()
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "leafclaims-gametest",
+  "version": "0.0.0",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "net.promptt001.leafclaims.gametest.IntegratedServerGameTest"
+    ]
+  },
+  "depends": {
+    "leafclaims": "*",
+    "fabric-api": "*"
+  }
+}

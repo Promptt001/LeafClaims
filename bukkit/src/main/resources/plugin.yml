@@ -1,0 +1,23 @@
+name: 'LeafClaims'
+description: '${description}'
+authors: ['William278', 'Promptt001']
+website: 'https://github.com/Promptt001/LeafClaims'
+main: 'net.promptt001.leafclaims.BukkitLeafClaims'
+version: '${version}'
+api-version: 1.17
+libraries:
+  - 'redis.clients:jedis:${jedis_version}'
+  - 'com.mysql:mysql-connector-j:${mysql_driver_version}'
+  - 'org.mariadb.jdbc:mariadb-java-client:${mariadb_driver_version}'
+  - 'org.xerial:sqlite-jdbc:${sqlite_driver_version}'
+  - 'org.mongodb:mongodb-driver-sync:${mongodb_driver_version}'
+softdepend:
+  - 'LuckPerms'
+  - 'Vault'
+  - 'Plan'
+  - 'PlaceholderAPI'
+  - 'WorldGuard'
+  - 'floodgate'
+  - 'Pl3xMap'
+  - 'BlueMap'
+  - 'dynmap'

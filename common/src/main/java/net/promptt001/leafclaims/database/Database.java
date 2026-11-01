@@ -1,0 +1,479 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.database;
+
+import com.google.common.collect.Maps;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.claim.ClaimWorld;
+import net.promptt001.leafclaims.position.ServerWorld;
+import net.promptt001.leafclaims.position.World;
+import net.promptt001.leafclaims.trust.UserGroup;
+import net.promptt001.leafclaims.user.SavedUser;
+import org.intellij.lang.annotations.Language;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class Database {
+
+    protected LeafClaims plugin;
+    private boolean loaded;
+
+    protected Database(@NotNull LeafClaims plugin) {
+        this.plugin = plugin;
+    }
+
+    /**
+     * Get the schema statements from the schema file
+     *
+     * @return the {@link #format formatted} schema statements
+     */
+    @NotNull
+    protected final String[] getScript(@NotNull String name) {
+        name = (name.startsWith("database/") ? "" : "database/") + name + (name.endsWith(".sql") ? "" : ".sql");
+        try (InputStream file = Objects.requireNonNull(plugin.getResource(name), "Invalid script %s".formatted(name))) {
+            @Language("SQL") final String schema = new String(file.readAllBytes(), StandardCharsets.UTF_8);
+            return format(schema).split(";");
+        } catch (IOException e) {
+            plugin.log(Level.SEVERE, "Failed to load database schema", e);
+        }
+        return new String[0];
+    }
+
+    protected abstract void executeScript(@NotNull Connection connection, @NotNull String name) throws SQLException;
+
+    /**
+     * Format a string for use in an SQL query
+     *
+     * @param statement The SQL statement to format
+     * @return The formatted SQL statement
+     */
+    @NotNull
+    protected final String format(@NotNull @Language("SQL") String statement) {
+        final Pattern pattern = Pattern.compile("%(\\w+)%");
+        final Matcher matcher = pattern.matcher(statement);
+        final StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            final Table table = Table.match(matcher.group(1));
+            matcher.appendReplacement(sb, plugin.getSettings().getDatabase().getTableName(table));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    /**
+     * Backup a flat file database
+     *
+     * @param file the file to back up
+     */
+    protected final void backupFlatFile(@NotNull Path file) {
+        if (!file.toFile().exists()) {
+            return;
+        }
+
+        final Path backup = file.getParent().resolve(String.format("%s.bak", file.getFileName().toString()));
+        try {
+            final File backupFile = backup.toFile();
+            if (!backupFile.exists() || backupFile.delete()) {
+                Files.copy(file, backup);
+            }
+        } catch (IOException e) {
+            plugin.log(Level.WARNING, "Failed to backup flat file database", e);
+        }
+    }
+
+    /**
+     * Initialize the database connection
+     *
+     * @throws IllegalStateException if the database initialization fails
+     */
+    public abstract void initialize() throws IllegalStateException;
+
+    /**
+     * Check if the database has been created
+     *
+     * @return {@code true} if the database has been created; {@code false} otherwise
+     */
+    public abstract boolean isCreated();
+
+    /**
+     * Perform database migrations
+     *
+     * @param connection the database connection
+     * @throws SQLException if an SQL error occurs during migration
+     */
+    protected final void performMigrations(@Nullable Connection connection, @NotNull Type type) throws SQLException {
+        final int currentVersion = getSchemaVersion();
+        final int latestVersion = Migration.getLatestVersion();
+        if (currentVersion < latestVersion) {
+            plugin.log(Level.INFO, "Performing database migrations (Target version: v" + latestVersion + ")");
+            for (Migration migration : Migration.getOrderedMigrations()) {
+                if (!migration.isSupported(type)) {
+                    continue;
+                }
+                if (migration.getVersion() > currentVersion) {
+                    try {
+                        plugin.log(Level.INFO, "Performing database migration: " + migration.getMigrationName()
+                                + " (v" + migration.getVersion() + ")");
+                        if (type == Type.MONGODB) {
+                            performMongoMigration(migration);
+                        } else {
+                            if (connection == null) {
+                                throw new IllegalStateException("Connection cannot be null for SQL databases");
+                            }
+                            executeScript(connection, "migrations/%s-%s-%s.sql".formatted(
+                                    migration.getVersion(),
+                                    type.name().toLowerCase(Locale.ENGLISH),
+                                    migration.getMigrationName()
+                            ));
+                        }
+                    } catch (Exception e) {
+                        plugin.log(Level.WARNING, "Migration " + migration.getMigrationName()
+                                + " (v" + migration.getVersion() + ") failed; skipping", e);
+                    }
+                    migration.executeRunnable(this);
+                }
+            }
+            setSchemaVersion(latestVersion);
+            plugin.log(Level.INFO, "Completed database migration (Target version: v" + latestVersion + ")");
+        }
+    }
+
+    /**
+     * Perform a MongoDB migration
+     *
+     * @param migration the migration to perform
+     */
+    protected void performMongoMigration(@NotNull Migration migration) {
+        throw new UnsupportedOperationException("MongoDB migrations must be implemented in MongoDbDatabase");
+    }
+
+    /**
+     * Get the database schema version
+     *
+     * @return the database schema version
+     */
+    public abstract int getSchemaVersion();
+
+    /**
+     * Set the database schema version
+     *
+     * @param version the database schema version
+     */
+    public abstract void setSchemaVersion(int version);
+
+    /**
+     * Get a user by their UUID
+     *
+     * @param uuid The UUID of the user
+     * @return The user, if they exist
+     */
+    public abstract Optional<SavedUser> getUser(@NotNull UUID uuid);
+
+    /**
+     * Get a user by their name
+     *
+     * @param username The name of the user
+     * @return The user, if they exist
+     */
+    public abstract Optional<SavedUser> getUser(@NotNull String username);
+
+    /**
+     * Get a list of {@link SavedUser}s who have not logged in for a given number of days
+     *
+     * @param daysInactive The number of days a user has not logged in for
+     * @return A list of {@link SavedUser}s who have not logged in for a given number of days
+     */
+    public abstract List<SavedUser> getInactiveUsers(long daysInactive);
+
+    /**
+     * Add a user to the database
+     *
+     * @param user The saved user to add
+     * @since 1.0.3
+     */
+    public abstract void createUser(@NotNull SavedUser user);
+
+    /**
+     * Update a user in the database
+     *
+     * @param user The user to update
+     * @since 1.0
+     */
+    public abstract void updateUser(@NotNull SavedUser user);
+
+    /**
+     * Create a user, or if they exist, update them in the database
+     *
+     * @param user The user to create or update
+     * @since 1.0
+     */
+    public abstract void createOrUpdateUser(@NotNull SavedUser user);
+
+    /**
+     * Get a list of a user's {@link UserGroup user groups}.
+     *
+     * @param uuid The UUID of the user
+     * @return A list of the user's {@link UserGroup user groups}
+     */
+    @NotNull
+    public abstract Set<UserGroup> getUserGroups(@NotNull UUID uuid);
+
+    /**
+     * Get a map of all {@link UserGroup user groups} for all users.
+     *
+     * @return A map of everyone's {@link UserGroup user groups}.
+     */
+    @NotNull
+    public abstract Map<UUID, Set<UserGroup>> getAllUserGroups();
+
+    /**
+     * Add a {@link UserGroup} to the database
+     *
+     * @param group the group to add
+     */
+    public abstract void addUserGroup(@NotNull UserGroup group);
+
+    /**
+     * Edit a {@link UserGroup} in the database
+     *
+     * @param owner    The owner of the group
+     * @param name     The name of the group
+     * @param newGroup The new group data
+     */
+    public abstract void updateUserGroup(@NotNull UUID owner, @NotNull String name, @NotNull UserGroup newGroup);
+
+    /**
+     * Delete a {@link UserGroup} from the database
+     *
+     * @param group the group to delete
+     */
+    public abstract void deleteUserGroup(@NotNull UserGroup group);
+
+    /**
+     * Get a list of all claim worlds on a server
+     *
+     * @return A list of all claim worlds on a server, excluding unclaimable worlds.
+     * @throws IllegalStateException if the plugin fails to fetch claim world data
+     */
+    @NotNull
+    public abstract Map<World, ClaimWorld> getClaimWorlds(@NotNull String server) throws IllegalStateException;
+
+    /**
+     * Get a list of all claim worlds
+     *
+     * @return A map of world-server entries to each claim world
+     * @throws IllegalStateException if the plugin fails to fetch claim world data
+     */
+    @NotNull
+    public abstract Map<ServerWorld, ClaimWorld> getAllClaimWorlds() throws IllegalStateException;
+
+    /**
+     * Create a new claim world and add it to the database
+     *
+     * @param world The world to create the claim world for
+     * @return The created claim world
+     */
+    @NotNull
+    public abstract ClaimWorld createClaimWorld(@NotNull World world);
+
+    /**
+     * Update a claim world in the database
+     *
+     * @param claimWorld The claim world to update
+     */
+    public abstract void updateClaimWorld(@NotNull ClaimWorld claimWorld);
+
+    /**
+     * Close the database connection
+     */
+    public abstract void close();
+
+    /**
+     * Check if the database has been loaded
+     *
+     * @return {@code true} if the database has loaded successfully; {@code false} if it failed to initialize
+     */
+    public boolean hasLoaded() {
+        return loaded;
+    }
+
+    /**
+     * Set if the database has loaded
+     *
+     * @param loaded whether the database has loaded successfully
+     */
+    protected void setLoaded(boolean loaded) {
+        this.loaded = loaded;
+    }
+
+    /**
+     * Identifies types of databases
+     */
+    public enum Type {
+        MYSQL("MySQL"),
+        MARIADB("MariaDB"),
+        SQLITE("SQLite"),
+        MONGODB("MongoDB");
+        @NotNull
+        private final String displayName;
+
+        Type(@NotNull String displayName) {
+            this.displayName = displayName;
+        }
+
+        @NotNull
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    /**
+     * Represents the names of tables in the database
+     */
+    public enum Table {
+        META_DATA("leafclaims_metadata"),
+        USER_DATA("leafclaims_users"),
+        USER_GROUP_DATA("leafclaims_user_groups"),
+        CLAIM_DATA("leafclaims_claim_worlds");
+        @NotNull
+        private final String defaultName;
+
+        Table(@NotNull String defaultName) {
+            this.defaultName = defaultName;
+        }
+
+        @NotNull
+        public static Database.Table match(@NotNull String placeholder) throws IllegalArgumentException {
+            return Table.valueOf(placeholder.toUpperCase(Locale.ENGLISH));
+        }
+
+        @NotNull
+        public String getDefaultName() {
+            return defaultName;
+        }
+    }
+
+    /**
+     * Represents database migrations that need to be run
+     */
+    public enum Migration {
+        ADD_METADATA_TABLE(
+                0, "add_metadata_table",
+                Type.MYSQL, Type.MARIADB, Type.SQLITE, Type.MONGODB
+        ),
+        REMOVE_HOURS_PLAYED_COLUMN(
+                1, "remove_hours_played_column",
+                Type.MYSQL, Type.MARIADB, Type.SQLITE, Type.MONGODB
+        ),
+        CONVERT_TO_JSONB(
+                2, "convert_to_jsonb",
+                Type.SQLITE
+        ),
+        ADD_SPENT_CLAIM_BLOCKS_COLUMN(
+                3, "add_spent_claim_blocks_column",
+                (database) -> {
+                    // Update all users to have the correct spent_claim_blocks
+                    final Map<UUID, SavedUser> users = Maps.newHashMap();
+                    for (ClaimWorld world : database.getAllClaimWorlds().values()) {
+                        world.getClaims().stream().filter(c -> c.getOwner().isPresent()).forEach(claim -> {
+                            final UUID owner = claim.getOwner().get();
+                            if (!users.containsKey(owner)) {
+                                database.getUser(owner).ifPresent(user -> users.put(owner, user));
+                            }
+                            final SavedUser user = users.getOrDefault(owner, null);
+                            if (user == null) {
+                                return;
+                            }
+                            user.setSpentClaimBlocks(user.getSpentClaimBlocks() + claim.getRegion().getSurfaceArea());
+                            users.put(owner, user);
+                        });
+                    }
+                    users.values().forEach(database::updateUser);
+                },
+                Type.MYSQL, Type.MARIADB, Type.SQLITE, Type.MONGODB
+        );
+
+        private final int version;
+        private final String migrationName;
+        private final Type[] supportedTypes;
+        private final Consumer<Database> runnable;
+
+        Migration(int version, @NotNull String migrationName, @Nullable Consumer<Database> runnable,
+                  @NotNull Type... supportedTypes) {
+            this.version = version;
+            this.migrationName = migrationName;
+            this.supportedTypes = supportedTypes;
+            this.runnable = runnable;
+        }
+
+        Migration(int version, @NotNull String migrationName, @NotNull Type... supportedTypes) {
+            this(version, migrationName, null, supportedTypes);
+        }
+
+        private void executeRunnable(@NotNull Database database) {
+            if (runnable != null) {
+                runnable.accept(database);
+            }
+        }
+
+        private int getVersion() {
+            return version;
+        }
+
+        @NotNull
+        private String getMigrationName() {
+            return migrationName;
+        }
+
+        private boolean isSupported(@NotNull Type type) {
+            return Arrays.stream(supportedTypes).anyMatch(supportedType -> supportedType == type);
+        }
+
+        @NotNull
+        public static List<Migration> getOrderedMigrations() {
+            return Arrays.stream(Migration.values())
+                    .sorted(Comparator.comparingInt(Migration::getVersion))
+                    .collect(Collectors.toList());
+        }
+
+        public static int getLatestVersion() {
+            return getOrderedMigrations().getLast().getVersion();
+        }
+    }
+
+}

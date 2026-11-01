@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.promptt001.leafclaims.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AbstractFurnaceBlockEntityMixin",
+    "CraftingMenuMixin",
+    "InventoryMenuMixin",
+    "PlayerInventoryMixin",
+    "ServerPlayNetworkHandlerMixin",
+    "SlotMixin",
+    "SignBlockEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

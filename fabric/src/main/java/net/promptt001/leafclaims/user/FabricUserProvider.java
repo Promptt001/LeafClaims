@@ -1,0 +1,55 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.user;
+
+import net.minecraft.server.level.ServerPlayer;
+import net.promptt001.leafclaims.FabricLeafClaims;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.UUID;
+
+public interface FabricUserProvider extends UserProvider {
+
+    @Override
+    @NotNull
+    default OnlineUser getOnlineUser(@NotNull UUID uuid) {
+        final ServerPlayer player = getPlugin().requireServer().getPlayerList().getPlayer(uuid);
+        return getOnlineUser(player);
+    }
+
+    @NotNull
+    default FabricUser getOnlineUser(@Nullable ServerPlayer player) {
+        if (player == null) {
+            throw new IllegalArgumentException("Player is not online");
+        }
+        FabricUser user = (FabricUser) getOnlineUserMap().get(player.getUUID());
+        if (user == null || user.getFabricPlayer().isRemoved() || user.getFabricPlayer().hasDisconnected()) {
+            user = FabricUser.adapt(player, getPlugin());
+            getOnlineUserMap().put(player.getUUID(), user);
+            return user;
+        }
+        return user;
+    }
+
+    @NotNull
+    FabricLeafClaims getPlugin();
+
+}

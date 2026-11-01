@@ -1,0 +1,14 @@
+plugins {
+    id("gg.essential.multi-version.root")
+}
+
+preprocess {
+    def fabric260300 = createNode("26.3", 260300, "mojmap")
+    def fabric260200 = createNode("26.2", 260200, "mojmap")
+
+    // 26.2 stays the main project; 26.3 links onto it.
+    // Guards are hand-written both ways (preprocessor does not translate).
+    fabric260300.link(fabric260200, null)
+
+    strictExtraMappings.set(true)
+}

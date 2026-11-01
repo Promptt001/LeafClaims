@@ -1,0 +1,47 @@
+name: 'LeafClaims'
+description: '${description}'
+authors: ['William278', 'Promptt001']
+website: 'https://github.com/Promptt001/LeafClaims'
+main: 'net.promptt001.leafclaims.PaperLeafClaims'
+loader: 'net.promptt001.leafclaims.PaperLeafClaimsLoader'
+version: '${version}'
+api-version: '1.19'
+folia-supported: true
+dependencies:
+  server:
+    LuckPerms:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Vault:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Plan:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    WorldGuard:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    floodgate:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Pl3xMap:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    BlueMap:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    dynmap:
+      load: BEFORE
+      required: false
+      join-classpath: true

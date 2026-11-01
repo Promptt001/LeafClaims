@@ -1,0 +1,50 @@
+name: Build and test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write          # mikepenz/action-junit-report publishes a check run
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0          # grgit needs history and tags, or versions get a -<sha> suffix
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - name: Build and test common and bukkit
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+        run: ./gradlew --no-daemon :common:build :bukkit:build
+      - name: Build Paper and Fabric
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_25_X64 }}
+        run: ./gradlew --no-daemon :paper:build :fabric:26.2:build :fabric:26.3:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jars
+          path: |
+            target/LeafClaims-Paper-*.jar
+            target/LeafClaims-Bukkit-*.jar
+            target/LeafClaims-Fabric-*.jar
+            !target/*-sources.jar
+            !target/*-javadoc.jar
+          if-no-files-found: error
+      - uses: mikepenz/action-junit-report@v6
+        if: success() || failure()
+        with:
+          report_paths: '**/build/test-results/test/TEST-*.xml'

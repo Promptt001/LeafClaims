@@ -1,0 +1,112 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.user;
+
+import de.themoep.minedown.adventure.MineDown;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
+import net.william278.cloplib.listener.InspectorCallbackProvider;
+import net.william278.cloplib.operation.OperationUser;
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.position.Position;
+import net.promptt001.leafclaims.position.World;
+import org.jetbrains.annotations.NotNull;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Platform-agnostic representation of an online user
+ */
+public abstract class OnlineUser extends User implements OperationUser, CommandUser {
+
+    private long lastCommandExecutionTime = -1;
+    protected final LeafClaims plugin;
+
+    protected OnlineUser(@NotNull String username, @NotNull UUID uuid, @NotNull LeafClaims plugin) {
+        super(username, uuid);
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean isOnCooldown(float cooldownTime) {
+        final long time = Instant.now().toEpochMilli();
+        boolean cooldown = lastCommandExecutionTime > -1 && (time - lastCommandExecutionTime) <= (cooldownTime * 1000);
+        lastCommandExecutionTime = cooldown ? lastCommandExecutionTime : time;
+        return cooldown;
+    }
+
+    @NotNull
+    public abstract Position getPosition();
+
+    @NotNull
+    public final World getWorld() {
+        return getPosition().getWorld();
+    }
+
+    @NotNull
+    public Audience getAudience() {
+        return plugin.getAudience(getUuid());
+    }
+
+    public void sendMessage(@NotNull Component message) {
+        getAudience().sendMessage(message);
+    }
+
+    public void sendMessage(@NotNull MineDown mineDown) {
+        sendMessage(mineDown.toComponent());
+    }
+
+    public abstract void sendPluginMessage(@NotNull String channel, byte[] message);
+
+    public abstract boolean hasPermission(@NotNull String permission, boolean isDefault);
+
+    public abstract boolean hasPermission(@NotNull String permission);
+
+    public abstract boolean isHolding(@NotNull InspectorCallbackProvider.InspectionTool tool);
+
+    /**
+     * Returns whether the user is holding an item with the specified material
+     *
+     * @param material The material to check for
+     * @return Whether the user is holding the specified material
+     * @deprecated Use {@link #isHolding(InspectorCallbackProvider.InspectionTool)} instead
+     */
+    @Deprecated(since = "1.3", forRemoval = true)
+    public boolean isHolding(@NotNull String material) {
+        return this.isHolding(InspectorCallbackProvider.InspectionTool.builder().material(material).build());
+    }
+
+    public abstract Optional<Long> getNumericalPermission(@NotNull String prefix);
+
+    public abstract boolean isSneaking();
+
+    public abstract void teleport(@NotNull Position position, boolean instant);
+
+    /**
+     * Returns whether this user can see the specified user
+     *
+     * @param other The other user to check visibility for
+     * @return Whether this user can see the other user
+     */
+    public abstract boolean canSee(@NotNull OnlineUser other);
+
+}

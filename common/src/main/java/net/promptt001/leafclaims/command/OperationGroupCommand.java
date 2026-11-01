@@ -1,0 +1,71 @@
+/*
+ * This file is part of LeafClaims, licensed under the Apache License 2.0.
+ *
+ *  Copyright (c) William278 <will27528@gmail.com>
+ *  Copyright (c) contributors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+package net.promptt001.leafclaims.command;
+
+import net.promptt001.leafclaims.LeafClaims;
+import net.promptt001.leafclaims.claim.Claim;
+import net.promptt001.leafclaims.claim.ClaimWorld;
+import net.promptt001.leafclaims.config.Settings;
+import net.promptt001.leafclaims.trust.TrustLevel;
+import net.promptt001.leafclaims.user.OnlineUser;
+import org.jetbrains.annotations.NotNull;
+
+public class OperationGroupCommand extends InClaimCommand implements ToggleTabCompletable {
+
+    private final Settings.OperationGroup group;
+
+    protected OperationGroupCommand(@NotNull Settings.OperationGroup group, @NotNull LeafClaims plugin) {
+        super(
+                group.getToggleCommandAliases(),
+                "[on|off]",
+                TrustLevel.Privilege.MANAGE_OPERATION_GROUPS,
+                plugin
+        );
+        this.group = group;
+    }
+
+    @Override
+    public void execute(@NotNull OnlineUser executor, @NotNull ClaimWorld world,
+                        @NotNull Claim claim, @NotNull String[] args) {
+        boolean disableGroup = !parseBooleanArg(args, 0).orElse(!isOperationGroupSet(claim));
+        if (disableGroup) {
+            group.getAllowedOperations().forEach(claim.getDefaultFlags()::remove);
+            plugin.getLocales().getLocale("disabled_operation_group", group.getName())
+                    .ifPresent(executor::sendMessage);
+        } else {
+            claim.getDefaultFlags().addAll(group.getAllowedOperations());
+            plugin.getLocales().getLocale("enabled_operation_group", group.getName())
+                    .ifPresent(executor::sendMessage);
+        }
+
+        plugin.runQueued(() -> plugin.getDatabase().updateClaimWorld(world));
+    }
+
+    private boolean isOperationGroupSet(@NotNull Claim claim) {
+        return claim.getDefaultFlags().containsAll(group.getAllowedOperations());
+    }
+
+    @NotNull
+    @Override
+    public String getDescription() {
+        return group.getDescription();
+    }
+
+}
