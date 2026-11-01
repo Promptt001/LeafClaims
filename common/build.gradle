@@ -17,7 +17,7 @@ dependencies {
     // net.william278.desertwell / net.william278.paginedown (self-contained spin-off, no
     // upstream artifact). DesertWell used to supply org.json transitively, so it is pinned
     // here directly - the shaded jar still needs those 14 classes.
-    api 'org.json:json:20230227'
+    api 'org.json:json:20260814'
     // ClopLib 2.0.13 is absorbed as source in net.william278.cloplib (self-contained spin-off).
     // It needs configlib-yaml and adventure-key, which were previously transitive.
     api 'de.exlll:configlib-yaml:4.6.1'
