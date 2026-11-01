@@ -31,7 +31,7 @@ dependencies {
     compileOnly 'net.kyori:adventure-platform-api:4.4.0'
     compileOnly 'org.jetbrains:annotations:26.0.2'
     compileOnly 'com.google.guava:guava:33.4.8-jre'
-    compileOnly 'org.projectlombok:lombok:1.18.38'
+    compileOnly 'org.projectlombok:lombok:1.18.48'
 
     // Toilet 1.1.2 is absorbed as source in net.william278.toilet (self-contained spin-off).
 
@@ -51,8 +51,8 @@ dependencies {
 
     testImplementation 'com.google.guava:guava:33.4.8-jre'
     testImplementation 'it.unimi.dsi:fastutil:8.5.16'
-    testCompileOnly 'org.projectlombok:lombok:1.18.38'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.38'
+    testCompileOnly 'org.projectlombok:lombok:1.18.48'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.48'
 
     compileOnly "org.xerial:sqlite-jdbc:$sqlite_driver_version"
     compileOnly "com.mysql:mysql-connector-j:$mysql_driver_version"
@@ -60,5 +60,5 @@ dependencies {
     compileOnly "org.mongodb:mongodb-driver-sync:$mongodb_driver_version"
     compileOnly "redis.clients:jedis:$jedis_version"
 
-    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+    annotationProcessor 'org.projectlombok:lombok:1.18.48'
 }

@@ -57,9 +57,9 @@ dependencies {
     implementation include("redis.clients.authentication:redis-authx-core:0.1.1-beta2")
 
     compileOnly 'org.jetbrains:annotations:26.0.2'
-    compileOnly 'org.projectlombok:lombok:1.18.38'
+    compileOnly 'org.projectlombok:lombok:1.18.48'
 
-    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+    annotationProcessor 'org.projectlombok:lombok:1.18.48'
 
     implementation include(project(path: ":common"))
     // ClopLib is now first-party source in :common, so nothing needs skipping here; every
